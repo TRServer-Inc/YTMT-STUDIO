@@ -387,10 +387,10 @@ public sealed class DiscordOAuthService : IDisposable
             "<h2 style='color:" + color + "'>YTMT-STUDIO</h2><p>" + text +
             "</p></body></html>";
         byte[] bytes = Encoding.UTF8.GetBytes(html);
-        string headers = $"HTTP/1.1 {(success ? "200 OK" : "400 Bad Request")}\\r\\n" +
-            "Content-Type: text/html; charset=utf-8\\r\\n" +
-            $"Content-Length: {bytes.Length}\\r\\n" +
-            "Cache-Control: no-store\\r\\nConnection: close\\r\\n\\r\\n";
+        string headers = $"HTTP/1.1 {(success ? "200 OK" : "400 Bad Request")}\r\n" +
+            "Content-Type: text/html; charset=utf-8\r\n" +
+            $"Content-Length: {bytes.Length}\r\n" +
+            "Cache-Control: no-store\r\nConnection: close\r\n\r\n";
         await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
         await stream.WriteAsync(bytes, cancellationToken);
         await stream.FlushAsync(cancellationToken);
