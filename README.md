@@ -1,42 +1,51 @@
-# YTMT-STUDIO v1.4 — Login Edition
+# YTMT-STUDIO — Discord Login Edition
 
-.NET 10 Windows Forms yönetim paneli + ayrı Render Authentication API.
+.NET 10 Windows Forms desktop application for YTMT BOT management.
 
-## Öne çıkanlar
+## Sign-in
 
-- Modern koyu login ekranı.
-- Yalnızca private GitHub hesabında önceden eklenmiş kullanıcılar giriş yapabilir.
-- Signup / register sistemi yoktur.
-- Kullanıcı adı + parola doğrulaması; parolalar Argon2id hash olarak saklanır.
-- Beni hatırla açıkken 30 gün; kapalıyken 12 saat mutlak oturum.
-- Access token 15 dakika; token yenileme 30 günlük bitiş tarihini uzatmaz.
-- Refresh token Windows DPAPI CurrentUser ile şifreli saklanır.
-- Ana ekranda kullanıcı bilgisi ve çıkış düğmesi bulunur.
-- Hesap devre dışı bırakma ve `sessionVersion` ile oturum iptali desteklenir.
+- Discord is the only sign-in provider.
+- The desktop app uses Discord OAuth2 Authorization Code + PKCE directly.
+- No Studio username/password account is required.
+- No Render AuthService, database, or Auth API is required to sign in.
+- On first launch, enter the Discord Application Client ID. It is stored in local app settings.
+- Discord access and refresh tokens are protected with Windows DPAPI CurrentUser.
 
-## Önce kurulum rehberi
+## Discord Developer Portal setup
 
-**Önemli:** Önce `AuthService/README.md`, sonra `APPLY_GUIDE.md` dosyasını oku. Render servisi, PostgreSQL ve private GitHub hesap deposu kurulmadan masaüstü login çalışmayacaktır.
+1. Add this exact OAuth2 redirect URI: `http://127.0.0.1:53682/callback`.
+2. Enable the application's Public OAuth2 Client option for the PKCE desktop flow.
+3. The app requests only `identify` and `guilds` scopes.
+4. Do not add a Client Secret to the desktop app. It is not used.
 
-## Proje yapısı
+## Features
 
-```text
-YTMT-STUDIO-v1.4/
-├── AuthClient/             # WinForms login, API client, DPAPI session
-├── AuthService/            # Render Node.js auth backend
-├── Controls/               # Existing dashboard controls
-├── Models/                 # Existing bot monitoring models
-├── Services/               # Existing bot API + settings services
-├── MainForm.cs             # Existing main UI + auth user/logout integration
-├── Program.cs              # Auth-first startup
-├── auth.config.json        # Render Auth API URL
-└── YTMT-STUDIO.csproj
+- Discord account sign-in and remembered local session.
+- Manageable Discord guild listing based on the current account's permissions.
+- YTMT BOT installation status and invite link.
+- Multiple auto-role drafts.
+- Reaction-role drafts for existing messages or new bot messages.
+- Welcome, log-channel, and moderation setting drafts.
+- Local JSON import/export, validation, and audit log.
+- Existing dashboard, WebView2 terminal, command catalog, API monitoring, and live event stream.
+
+## Bot configuration
+
+Server settings are saved locally as drafts under:
+
+`%LOCALAPPDATA%\YTMT-STUDIO\GuildWorkspaces\`
+
+Export the selected guild's JSON file and import it from the YTMT-BOT project folder using:
+
+```bash
+npm run import-studio-config -- "C:\path\to\ytmt-guild-123456789012345678.json"
 ```
 
-## Mevcut özellikler korunur
+The bot integration guide is in `Bot-Integration/README.md`.
 
-Dashboard, WebView2 terminal, komut kataloğu, API izleme ve SSE canlı olay sayfası aynı projede kalır. Bot API uçları bu değişiklikte değiştirilmemiştir.
+## Build
 
-## Doğrulama
-
-`BUILD_VALIDATION.md` yapılan kontrolleri ve henüz çalıştırılamayan testleri açıkça listeler. Bu çalışma ortamında .NET SDK bulunmadığından C# derlemesi yapılmamıştır.
+- Target: .NET 10 Windows Forms, Windows x64.
+- Published app: `YTMT-STUDIO-Windows/`.
+- Source: `YTMT-STUDIO-Source/`.
+- The published app is framework-dependent and requires the .NET 10 Windows Desktop Runtime.
