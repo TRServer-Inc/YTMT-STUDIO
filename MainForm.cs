@@ -331,6 +331,7 @@ public sealed partial class MainForm : Form
 
         AddNav(nav, "dashboard", "▦   Genel Bakış");
         AddNav(nav, "botcontrol", "⏻   Bot Yönetimi");
+        AddNav(nav, "server", "▣   Sunucu Yönetimi");
         AddNav(nav, "terminal", "⌘   Web Terminal");
         AddNav(nav, "commands", "☷   Komutlar");
         AddNav(nav, "monitor", "◷   API İzleme");
@@ -517,6 +518,12 @@ public sealed partial class MainForm : Form
                 _pageTitle.Text = "Bot Yönetimi";
                 _botControlPage ??= CreateBotControlPage();
                 page = _botControlPage;
+                break;
+
+            case "server":
+                _pageTitle.Text = "Sunucu Yönetim Merkezi";
+                _serverManagementPage ??= CreateServerManagementPage();
+                page = _serverManagementPage;
                 break;
 
             case "terminal":
