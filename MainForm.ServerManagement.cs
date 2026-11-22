@@ -104,11 +104,18 @@ public sealed partial class MainForm
         var split = new SplitContainer
         {
             Dock = DockStyle.Fill,
-            SplitterDistance = 300,
             BackColor = Palette.Border,
-            Panel1MinSize = 240,
-            Panel2MinSize = 520,
             BorderStyle = BorderStyle.FixedSingle
+        };
+        split.SizeChanged += (_, _) =>
+        {
+            if (split.Width > 790)
+            {
+                split.Panel1MinSize = 240;
+                split.Panel2MinSize = 520;
+                if (split.SplitterDistance < 280)
+                    split.SplitterDistance = 300;
+            }
         };
 
         var left = new Panel { Dock = DockStyle.Fill, BackColor = Palette.Surface, Padding = new Padding(10) };
@@ -607,14 +614,11 @@ public sealed partial class MainForm
         if (_reactionMessageId is not null) _reactionMessageId.Visible = !isNew;
         if (_reactionMessageContent is not null) _reactionMessageContent.Visible = isNew;
         if (_reactionMessageContent is not null) _reactionMessageContent.Height = 64;
-        foreach (Control control in _reactionMessageId?.Parent?.Controls ?? [])
-        {
-            if (control.Name == "reactionContentLabel") control.Visible = isNew;
-        }
         if (_reactionMessageId?.Parent is not null)
         {
             foreach (Control control in _reactionMessageId.Parent.Controls)
             {
+                if (control.Name == "reactionContentLabel") control.Visible = isNew;
                 if (control.Text == "Mevcut mesaj ID'si") control.Visible = !isNew;
             }
         }
