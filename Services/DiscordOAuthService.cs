@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -56,9 +57,8 @@ public sealed class DiscordOAuthService : IDisposable
         string verifier = Base64Url(RandomNumberGenerator.GetBytes(48));
         string challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
 
-        using var listener = new HttpListener();
-        listener.Prefixes.Add("http://127.0.0.1:53682/");
-        listener.Start();
+        using var listener = new TcpListener(IPAddress.Loopback, 53682);
+        listener.Start(backlog: 1);
 
         string authorizeUrl = "https://discord.com/oauth2/authorize" +
             "?client_id=" + Uri.EscapeDataString(_clientId) +
@@ -80,38 +80,64 @@ public sealed class DiscordOAuthService : IDisposable
             throw new InvalidOperationException("Varsayılan tarayıcı açılamadı: " + ex.Message, ex);
         }
 
-        HttpListenerContext context;
-        try
+        string? code;
+        using (var callbackTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
-            context = await listener.GetContextAsync()
-                .WaitAsync(TimeSpan.FromMinutes(4), cancellationToken);
-        }
-        catch (TimeoutException)
-        {
-            throw new TimeoutException("Discord giriş penceresi zaman aşımına uğradı. Tekrar deneyebilirsin.");
+            callbackTimeout.CancelAfter(TimeSpan.FromMinutes(4));
+            try
+            {
+                using TcpClient callbackClient = await listener.AcceptTcpClientAsync()
+                    .WaitAsync(callbackTimeout.Token);
+                await using NetworkStream stream = callbackClient.GetStream();
+                using var reader = new StreamReader(stream, Encoding.ASCII, false, 1024, leaveOpen: true);
+
+                string? requestLine = await reader.ReadLineAsync().WaitAsync(callbackTimeout.Token);
+                string[] requestParts = requestLine?.Split(' ', 3) ?? [];
+                Uri? callbackUri = requestParts.Length == 3 &&
+                    string.Equals(requestParts[0], "GET", StringComparison.Ordinal)
+                    ? new Uri(new Uri("http://127.0.0.1:53682/"), requestParts[1])
+                    : null;
+
+                int headerBytes = 0;
+                string? headerLine;
+                while (!string.IsNullOrEmpty(headerLine = await reader.ReadLineAsync().WaitAsync(callbackTimeout.Token)))
+                {
+                    headerBytes += headerLine.Length;
+                    if (headerBytes > 16_384) break;
+                }
+
+                Dictionary<string, string> query = callbackUri is null
+                    ? new(StringComparer.Ordinal)
+                    : ParseQuery(callbackUri.Query);
+                query.TryGetValue("state", out string? callbackState);
+                query.TryGetValue("code", out code);
+                query.TryGetValue("iss", out string? issuer);
+                query.TryGetValue("error", out string? error);
+
+                bool validPath = string.Equals(
+                    callbackUri?.AbsolutePath.TrimEnd('/'),
+                    "/callback",
+                    StringComparison.Ordinal);
+
+                if (error is not null || !validPath ||
+                    !string.Equals(state, callbackState, StringComparison.Ordinal) ||
+                    (issuer is not null && !string.Equals(issuer, "https://discord.com", StringComparison.Ordinal)) ||
+                    string.IsNullOrWhiteSpace(code))
+                {
+                    await WriteCallbackPageAsync(stream, false, cancellationToken);
+                    throw new InvalidOperationException(error == "access_denied"
+                        ? "Discord yetkilendirmesi iptal edildi."
+                        : "Discord OAuth2 dönüşü doğrulanamadı. State, issuer veya callback adresi eşleşmedi.");
+                }
+
+                await WriteCallbackPageAsync(stream, true, cancellationToken);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("Discord giriş penceresi zaman aşımına uğradı. Tekrar deneyebilirsin.");
+            }
         }
 
-        string? callbackState = context.Request.QueryString["state"];
-        string? code = context.Request.QueryString["code"];
-        string? issuer = context.Request.QueryString["iss"];
-        string? error = context.Request.QueryString["error"];
-        bool validPath = string.Equals(
-            context.Request.Url?.AbsolutePath.TrimEnd('/'),
-            "/callback",
-            StringComparison.Ordinal);
-
-        if (error is not null || !validPath ||
-            !string.Equals(state, callbackState, StringComparison.Ordinal) ||
-            (issuer is not null && !string.Equals(issuer, "https://discord.com", StringComparison.Ordinal)) ||
-            string.IsNullOrWhiteSpace(code))
-        {
-            await WriteCallbackPageAsync(context, false);
-            throw new InvalidOperationException(error == "access_denied"
-                ? "Discord yetkilendirmesi iptal edildi."
-                : "Discord OAuth2 dönüşü doğrulanamadı. State, issuer veya callback adresi eşleşmedi.");
-        }
-
-        await WriteCallbackPageAsync(context, true);
         DiscordSession session = await ExchangeCodeAsync(code, verifier, cancellationToken);
         DiscordProfile profile = await GetProfileAsync(session.AccessToken, cancellationToken);
         session.UserId = profile.Id;
@@ -347,7 +373,10 @@ public sealed class DiscordOAuthService : IDisposable
             ?? throw new InvalidDataException("Discord profil yanıtı boş.");
     }
 
-    private static async Task WriteCallbackPageAsync(HttpListenerContext context, bool success)
+    private static async Task WriteCallbackPageAsync(
+        NetworkStream stream,
+        bool success,
+        CancellationToken cancellationToken)
     {
         string text = success
             ? "Discord bağlantısı tamamlandı. Bu pencereyi kapatıp YTMT-STUDIO'ya dönebilirsin."
@@ -358,11 +387,28 @@ public sealed class DiscordOAuthService : IDisposable
             "<h2 style='color:" + color + "'>YTMT-STUDIO</h2><p>" + text +
             "</p></body></html>";
         byte[] bytes = Encoding.UTF8.GetBytes(html);
-        context.Response.StatusCode = success ? 200 : 400;
-        context.Response.ContentType = "text/html; charset=utf-8";
-        context.Response.ContentLength64 = bytes.Length;
-        await context.Response.OutputStream.WriteAsync(bytes);
-        context.Response.Close();
+        string headers = $"HTTP/1.1 {(success ? "200 OK" : "400 Bad Request")}\\r\\n" +
+            "Content-Type: text/html; charset=utf-8\\r\\n" +
+            $"Content-Length: {bytes.Length}\\r\\n" +
+            "Cache-Control: no-store\\r\\nConnection: close\\r\\n\\r\\n";
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(headers), cancellationToken);
+        await stream.WriteAsync(bytes, cancellationToken);
+        await stream.FlushAsync(cancellationToken);
+    }
+
+    private static Dictionary<string, string> ParseQuery(string query)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (string part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] pair = part.Split('=', 2);
+            string key = Uri.UnescapeDataString(pair[0].Replace('+', ' '));
+            string value = pair.Length > 1
+                ? Uri.UnescapeDataString(pair[1].Replace('+', ' '))
+                : string.Empty;
+            values[key] = value;
+        }
+        return values;
     }
 
     private static string Base64Url(byte[] bytes) =>
