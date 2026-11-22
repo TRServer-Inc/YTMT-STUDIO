@@ -1,0 +1,23 @@
+YTMT-STUDIO Role System Patch
+
+Changed/replaced:
+- AuthClient/Models/AuthRoles.cs (new)
+- AuthClient/Models/AuthUser.cs
+- AuthClient/Services/AuthClient.cs
+- AuthService/src/server.js
+- AuthService/README.md
+- MainForm.BotControl.cs
+- MainForm.cs
+- BOT_CONTROL_APPLY_GUIDE.md
+
+Added:
+- ROLE_SYSTEM_SETUP.md
+
+No changes made to:
+- AuthSessionStore / DPAPI session encryption
+- RenderCredentialStore / DPAPI Render API key storage
+- RenderControlService / Render API requests
+- auth.config.json / login endpoint URL
+- password hashing, refresh-token storage, session lifetime, database schema
+
+Important: The actual private GitHub accounts.json is external to this project archive. Add the role field there as described in ROLE_SYSTEM_SETUP.md.
