@@ -162,7 +162,8 @@ public sealed partial class MainForm
         _serverPermissionCaption.ForeColor = Palette.Muted;
         var inviteButton = MakeStudioButton("Botu Sunucuya Ekle", new Point(0, 0), 156, primary: true);
         inviteButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        inviteButton.Location = new Point(Width - 220, 16);
+        inviteButton.Location = new Point(840, 16);
+        summary.SizeChanged += (_, _) => inviteButton.Location = new Point(Math.Max(8, summary.ClientSize.Width - inviteButton.Width - 12), 16);
         inviteButton.Click += (_, _) => OpenBotInvite();
         summary.Controls.AddRange([_selectedGuildCaption, _selectedBotCaption, _serverPermissionCaption, inviteButton]);
 
@@ -868,7 +869,7 @@ public sealed partial class MainForm
         if (_discordConnectionStatus is null || _discordConnectionStatus.IsDisposed) return;
         if (_discordConnectionStatus.InvokeRequired)
         {
-            _discordConnectionStatus.BeginInvoke(() => SetDiscordConnectionText(text, color));
+            _discordConnectionStatus.BeginInvoke(new Action(() => SetDiscordConnectionText(text, color)));
             return;
         }
         _discordConnectionStatus.Text = text;
