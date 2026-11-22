@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -201,10 +202,13 @@ public sealed class DiscordOAuthService : IDisposable
 
     public async Task<DiscordGuildResources> GetGuildResourcesAsync(
         string guildId,
+        string discordAccessToken,
         CancellationToken cancellationToken = default)
     {
         string url = _botApiBaseUrl + "api/studio/guilds/" + Uri.EscapeDataString(guildId) + "/resources";
-        using HttpResponseMessage response = await Http.GetAsync(url, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", discordAccessToken);
+        using HttpResponseMessage response = await Http.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"Sunucu kaynakları alınamadı (HTTP {(int)response.StatusCode}).");
         return await response.Content.ReadFromJsonAsync<DiscordGuildResources>(JsonOptions, cancellationToken)
