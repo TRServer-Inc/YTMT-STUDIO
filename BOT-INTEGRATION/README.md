@@ -20,7 +20,7 @@ Aynı Discord uygulamasında aşağıdakileri kontrol et:
 
 1. OAuth2 Redirects listesinde tam olarak `http://127.0.0.1:53682/callback` kayıtlı olmalı.
 2. Desktop PKCE akışının Client Secret olmadan token değişimi yapabilmesi için uygulamada Public OAuth2 Client seçeneği etkin olmalı.
-3. Uygulamanın Client ID değerini YTMT-STUDIO > Sunucu Yönetimi sayfasında kaydet.
+3. İlk açılışta YTMT-STUDIO Discord giriş ekranına Client ID değerini gir. Uygulama bunu yerel ayarlara kaydeder.
 
 **Client Secret masaüstü projesine, ZIP'e, GitHub deposuna veya kullanıcı ayarlarına eklenmez.** Bu uygulama PKCE public-client akışını kullanır. Discord izin ekranında yalnızca `identify` ve `guilds` kapsamları istenir.
 
@@ -50,7 +50,7 @@ Seçilen roller botun en yüksek rolünün altında olmalı. Discord Developer P
 
 ## 3. Sunucu ayarlarını uygulama
 
-YTMT-STUDIO içindeki ayarlar güvenli şekilde **yerel taslak** olarak kaydedilir:
+YTMT-STUDIO oturumu doğrudan Discord OAuth2 ile açılır; Render AuthService giriş için kullanılmaz. Sunucu ayarları güvenli şekilde **yerel taslak** olarak kaydedilir:
 
 `%LOCALAPPDATA%\YTMT-STUDIO\GuildWorkspaces\`
 
