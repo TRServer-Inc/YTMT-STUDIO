@@ -96,11 +96,14 @@ public sealed partial class MainForm
         var refreshButton = MakeStudioButton("Sunucuları Yenile", new Point(676, 62), 142);
         refreshButton.Click += async (_, _) => await RefreshDiscordGuildsAsync();
 
-        _discordConnectionStatus = MakeStudioLabel("Discord bağlantısı bekleniyor.", new Point(830, 68));
+        var disconnectButton = MakeStudioButton("Bağlantıyı Kes", new Point(830, 62), 124);
+        disconnectButton.Click += (_, _) => DisconnectDiscord();
+
+        _discordConnectionStatus = MakeStudioLabel("Discord bağlantısı bekleniyor.", new Point(966, 68));
         _discordConnectionStatus.ForeColor = Palette.Yellow;
 
         top.Controls.AddRange([title, subtitle, clientLabel, _discordClientIdBox,
-            saveClientIdButton, connectButton, refreshButton, _discordConnectionStatus]);
+            saveClientIdButton, connectButton, refreshButton, disconnectButton, _discordConnectionStatus]);
 
         var split = new SplitContainer
         {
@@ -427,6 +430,25 @@ public sealed partial class MainForm
         {
             SetDiscordConnectionText("Oturum yüklenemedi: " + ex.Message, Palette.Red);
         }
+    }
+
+    private void DisconnectDiscord()
+    {
+        _discordOAuth?.ClearSavedSession();
+        _discordSession = null;
+        _manageableGuilds.Clear();
+        _selectedDiscordGuild = null;
+        _activeGuildWorkspace = null;
+        _selectedBotStatus = null;
+        _serverGuildGrid!.DataSource = null;
+        _selectedGuildCaption!.Text = "Bir sunucu seç.";
+        _selectedBotCaption!.Text = "YTMT BOT: kontrol edilmedi";
+        _selectedBotCaption.ForeColor = Palette.Yellow;
+        _serverPermissionCaption!.Text = "Discord hesabı bu bilgisayardan ayrıldı.";
+        _autoRoleList?.Items.Clear();
+        _reactionDraftList?.Items.Clear();
+        SetDiscordConnectionText("Discord bağlantısı bu bilgisayardan kaldırıldı.", Palette.Muted);
+        _guildWorkspaceStore.AppendAudit("0", "Discord", "discord_disconnected", "Yerel Discord oturumu temizlendi.");
     }
 
     private void SaveDiscordClientId()
