@@ -18,13 +18,6 @@ jobs:
         with:
           path: src
 
-      - name: Checkout YTMT BOT integration
-        uses: actions/checkout@v4
-        with:
-          repository: TRServer-Inc/YTMT-BOT
-          ref: main
-          path: bot
-
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
@@ -54,7 +47,7 @@ jobs:
           $global:LASTEXITCODE = 0
 
           $integration = Join-Path $bundle 'Bot-Integration\YTMT-BOT'
-          $botRoot = Join-Path $env:GITHUB_WORKSPACE 'bot'
+          $botRoot = Join-Path $env:GITHUB_WORKSPACE 'src\Bot-Integration\YTMT-BOT'
           $files = @(
             'bot\createClient.js',
             'data\db.js',
@@ -101,17 +94,17 @@ jobs:
         shell: pwsh
         run: |
           $files = @(
-            'bot\bot\createClient.js',
-            'bot\data\db.js',
-            'bot\data\models\guild.js',
-            'bot\data\models\reactionRole.js',
-            'bot\events\guildMemberAdd.js',
-            'bot\events\messageReactionAdd.js',
-            'bot\events\messageReactionRemove.js',
-            'bot\events\readyStudioReactionRoles.js',
-            'bot\scripts\importStudioConfig.js',
-            'bot\server\index.js',
-            'bot\server\routes\studio.js'
+            'src\Bot-Integration\YTMT-BOT\bot\createClient.js',
+            'src\Bot-Integration\YTMT-BOT\data\db.js',
+            'src\Bot-Integration\YTMT-BOT\data\models\guild.js',
+            'src\Bot-Integration\YTMT-BOT\data\models\reactionRole.js',
+            'src\Bot-Integration\YTMT-BOT\events\guildMemberAdd.js',
+            'src\Bot-Integration\YTMT-BOT\events\messageReactionAdd.js',
+            'src\Bot-Integration\YTMT-BOT\events\messageReactionRemove.js',
+            'src\Bot-Integration\YTMT-BOT\events\readyStudioReactionRoles.js',
+            'src\Bot-Integration\YTMT-BOT\scripts\importStudioConfig.js',
+            'src\Bot-Integration\YTMT-BOT\server\index.js',
+            'src\Bot-Integration\YTMT-BOT\server\routes\studio.js'
           )
           foreach ($file in $files) { node --check $file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 
