@@ -32,6 +32,16 @@ module.exports = function registerStudioRoutes(app, getDiscordClient) {
             return res.status(400).json({ ok: false, error: 'Geçersiz sunucu kimliği.' });
         }
 
+        const authorization = await verifyGuildManager(req, guildId);
+        if (!authorization.ok) {
+            return res.status(authorization.status).json({
+                ok: false,
+                error: authorization.status === 403
+                    ? 'Bu Discord sunucusunu yönetme yetkin doğrulanamadı.'
+                    : 'Discord oturumu doğrulanamadı.'
+            });
+        }
+
         const client = getDiscordClient();
         if (!client?.user) {
             return res.status(503).json({ ok: false, serviceAvailable: false, error: 'Bot henüz hazır değil.' });
