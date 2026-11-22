@@ -549,7 +549,7 @@ public sealed partial class MainForm
         {
             _selectedBotCaption!.Text = "YTMT BOT durumu kontrol ediliyor...";
             _selectedBotCaption.ForeColor = Palette.Yellow;
-            _selectedBotStatus = await _discordOAuth!.GetBotStatusAsync(guild.Id);
+            _selectedBotStatus = await _discordOAuth!.GetBotStatusAsync(guild.Id, _discordSession!.AccessToken);
             if (selectionVersion != _guildSelectionVersion) return;
             if (_selectedBotStatus.Installed)
             {
