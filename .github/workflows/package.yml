@@ -1,5 +1,9 @@
 name: Build and package YTMT Studio
 
+concurrency:
+  group: ytmt-studio-package-main
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -25,11 +29,11 @@ jobs:
 
       - name: Restore
         working-directory: src
-        run: dotnet restore YTMT-STUDIO.csproj
+        run: dotnet restore YTMT-STUDIO.csproj --runtime win-x64
 
       - name: Build
         working-directory: src
-        run: dotnet build YTMT-STUDIO.csproj --configuration Release --no-restore
+        run: dotnet build YTMT-STUDIO.csproj --configuration Release --runtime win-x64 --no-restore
 
       - name: Publish Windows x64
         working-directory: src
