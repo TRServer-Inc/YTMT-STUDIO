@@ -1,0 +1,129 @@
+name: Build and package YTMT Studio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout YTMT Studio
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Checkout YTMT BOT integration
+        uses: actions/checkout@v4
+        with:
+          repository: TRServer-Inc/YTMT-BOT
+          ref: main
+          path: bot
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        working-directory: src
+        run: dotnet restore YTMT-STUDIO.csproj
+
+      - name: Build
+        working-directory: src
+        run: dotnet build YTMT-STUDIO.csproj --configuration Release --no-restore
+
+      - name: Publish Windows x64
+        working-directory: src
+        run: dotnet publish YTMT-STUDIO.csproj --configuration Release --runtime win-x64 --self-contained false --no-restore --output "$env:GITHUB_WORKSPACE\bundle\YTMT-STUDIO-Windows"
+        shell: pwsh
+
+      - name: Assemble source and bot integration
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:GITHUB_WORKSPACE 'bundle'
+          New-Item -ItemType Directory -Force -Path (Join-Path $bundle 'YTMT-STUDIO-Source') | Out-Null
+          $source = Join-Path $env:GITHUB_WORKSPACE 'src'
+          robocopy $source (Join-Path $bundle 'YTMT-STUDIO-Source') /E /XD .git bin obj
+          if ($LASTEXITCODE -ge 8) { exit $LASTEXITCODE }
+          $global:LASTEXITCODE = 0
+
+          $integration = Join-Path $bundle 'Bot-Integration\YTMT-BOT'
+          $botRoot = Join-Path $env:GITHUB_WORKSPACE 'bot'
+          $files = @(
+            'bot\createClient.js',
+            'data\db.js',
+            'data\models\guild.js',
+            'data\models\reactionRole.js',
+            'events\guildMemberAdd.js',
+            'events\messageReactionAdd.js',
+            'events\messageReactionRemove.js',
+            'events\readyStudioReactionRoles.js',
+            'package.json',
+            'scripts\importStudioConfig.js',
+            'server\index.js',
+            'server\routes\studio.js'
+          )
+          foreach ($relative in $files) {
+            $from = Join-Path $botRoot $relative
+            $to = Join-Path $integration $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path $to -Parent) | Out-Null
+            Copy-Item -LiteralPath $from -Destination $to -Force
+          }
+
+          $guideSource = Join-Path $source 'BOT-INTEGRATION\README.md'
+          New-Item -ItemType Directory -Force -Path (Join-Path $bundle 'Bot-Integration') | Out-Null
+          Copy-Item -LiteralPath $guideSource -Destination (Join-Path $bundle 'Bot-Integration\README.md') -Force
+          Copy-Item -LiteralPath (Join-Path $source 'README_FIRST.txt') -Destination $bundle -Force
+
+          $patchList = @(
+            'bot\createClient.js',
+            'data\db.js',
+            'data\models\guild.js',
+            'data\models\reactionRole.js',
+            'events\guildMemberAdd.js',
+            'events\messageReactionAdd.js',
+            'events\messageReactionRemove.js',
+            'events\readyStudioReactionRoles.js',
+            'package.json',
+            'scripts\importStudioConfig.js',
+            'server\index.js',
+            'server\routes\studio.js'
+          )
+          $patchList | Set-Content -Path (Join-Path $bundle 'Bot-Integration\PATCH-FILES.txt') -Encoding UTF8
+
+      - name: Validate bot integration JavaScript syntax
+        shell: pwsh
+        run: |
+          $files = @(
+            'bot\bot\createClient.js',
+            'bot\data\db.js',
+            'bot\data\models\guild.js',
+            'bot\data\models\reactionRole.js',
+            'bot\events\guildMemberAdd.js',
+            'bot\events\messageReactionAdd.js',
+            'bot\events\messageReactionRemove.js',
+            'bot\events\readyStudioReactionRoles.js',
+            'bot\scripts\importStudioConfig.js',
+            'bot\server\index.js',
+            'bot\server\routes\studio.js'
+          )
+          foreach ($file in $files) { node --check $file; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path (Join-Path $env:GITHUB_WORKSPACE 'bundle\*') -DestinationPath (Join-Path $env:GITHUB_WORKSPACE 'YTMT-STUDIO-Bundle.zip') -CompressionLevel Optimal
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: YTMT-STUDIO-Bundle
+          path: YTMT-STUDIO-Bundle.zip
+          if-no-files-found: error
+          retention-days: 30
