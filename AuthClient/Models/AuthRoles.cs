@@ -31,9 +31,9 @@ public static class AuthRoles
 
         return normalizedRole switch
         {
-            Owner => key is "dashboard" or "botcontrol" or "terminal" or "commands" or "monitor" or "settings",
-            Admin => key is "dashboard" or "terminal" or "commands" or "monitor" or "settings",
-            User => key is "dashboard" or "commands" or "monitor",
+            Owner => key is "dashboard" or "botcontrol" or "terminal" or "commands" or "monitor" or "settings" or "server",
+            Admin => key is "dashboard" or "terminal" or "commands" or "monitor" or "settings" or "server",
+            User => key is "dashboard" or "commands" or "monitor" or "server",
             _ => key == "dashboard"
         };
     }
