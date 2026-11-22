@@ -182,10 +182,13 @@ public sealed class DiscordOAuthService : IDisposable
 
     public async Task<DiscordGuildBotStatus> GetBotStatusAsync(
         string guildId,
+        string discordAccessToken,
         CancellationToken cancellationToken = default)
     {
         string url = _botApiBaseUrl + "api/studio/guilds/" + Uri.EscapeDataString(guildId) + "/status";
-        using HttpResponseMessage response = await Http.GetAsync(url, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", discordAccessToken);
+        using HttpResponseMessage response = await Http.SendAsync(request, cancellationToken);
         if (response.StatusCode == HttpStatusCode.NotFound)
             return new DiscordGuildBotStatus { Installed = false, ServiceAvailable = true };
         if (!response.IsSuccessStatusCode)
