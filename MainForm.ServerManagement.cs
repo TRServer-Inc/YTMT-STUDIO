@@ -523,7 +523,7 @@ public sealed partial class MainForm
             {
                 _selectedBotCaption.Text = $"YTMT BOT bağlı · {_selectedBotStatus.Guild?.Name}";
                 _selectedBotCaption.ForeColor = Palette.Green;
-                _guildResources = await _discordOAuth.GetGuildResourcesAsync(guild.Id);
+                _guildResources = await _discordOAuth.GetGuildResourcesAsync(guild.Id, _discordSession!.AccessToken);
                 LoadGuildResourcesIntoControls();
             }
             else if (!_selectedBotStatus.ServiceAvailable)
