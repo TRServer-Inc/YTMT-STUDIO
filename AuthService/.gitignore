@@ -1,0 +1,5 @@
+node_modules/
+.env
+npm-debug.log*
+# Gerçek hesap kayıtları yanlışlıkla bu uygulama deposuna eklenmesin.
+auth/accounts.json
