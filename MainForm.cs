@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.WinForms;
 using YTMT_STUDIO.AuthClient.Models;
 using YTMT_STUDIO.AuthClient.Services;
-using AuthenticationClient = YTMT_STUDIO.AuthClient.Services.AuthClient;
 using YTMT_STUDIO.Controls;
 using YTMT_STUDIO.Models;
 using YTMT_STUDIO.Services;
@@ -28,11 +27,7 @@ public sealed partial class MainForm : Form
     }
 
     private readonly SettingsService _settingsService = new();
-    private readonly AuthenticationClient _authClient;
-    private readonly AuthSessionStore _authSessionStore;
     private AuthSession _authSession;
-    private readonly System.Windows.Forms.Timer _authHeartbeatTimer = new();
-    private int _authCheckRunning;
     private readonly ApiService _apiService = new();
     private readonly System.Windows.Forms.Timer _refreshTimer = new();
 
@@ -113,14 +108,26 @@ public sealed partial class MainForm : Form
     // CONSTRUCTOR
     // ==========================================
 
-    public MainForm(
-        AuthSession authSession,
-        AuthenticationClient authClient,
-        AuthSessionStore authSessionStore)
+    public MainForm(DiscordSession discordSession, DiscordOAuthService discordOAuth)
     {
-        _authSession = authSession ?? throw new ArgumentNullException(nameof(authSession));
-        _authClient = authClient ?? throw new ArgumentNullException(nameof(authClient));
-        _authSessionStore = authSessionStore ?? throw new ArgumentNullException(nameof(authSessionStore));
+        ArgumentNullException.ThrowIfNull(discordSession);
+        _discordSession = discordSession;
+        _discordOAuth = discordOAuth ?? throw new ArgumentNullException(nameof(discordOAuth));
+        string displayName = string.IsNullOrWhiteSpace(discordSession.GlobalName)
+            ? discordSession.Username
+            : discordSession.GlobalName;
+        _authSession = new AuthSession
+        {
+            AccessExpiresAt = discordSession.ExpiresAtUtc,
+            ExpiresAt = discordSession.ExpiresAtUtc,
+            User = new AuthUser
+            {
+                Id = discordSession.UserId,
+                Username = discordSession.Username,
+                DisplayName = displayName,
+                Role = AuthRoles.User
+            }
+        };
 
         _settings = _settingsService.Load();
         InitializeMonitorHistory();
@@ -155,10 +162,6 @@ public sealed partial class MainForm : Form
         _refreshTimer.Tick += async (_, _) =>
             await RefreshDashboardAsync();
 
-        _authHeartbeatTimer.Interval = 120_000;
-        _authHeartbeatTimer.Tick += async (_, _) =>
-            await CheckAuthenticationAsync();
-
         Shown += async (_, _) =>
         {
             ShowPage("dashboard");
@@ -168,7 +171,6 @@ public sealed partial class MainForm : Form
             if (!IsDisposed && !Disposing)
             {
                 _refreshTimer.Start();
-                _authHeartbeatTimer.Start();
                 StartLiveStream();
             }
         };
@@ -176,14 +178,12 @@ public sealed partial class MainForm : Form
         FormClosing += (_, _) =>
         {
             _refreshTimer.Stop();
-            _authHeartbeatTimer.Stop();
 
             // SSE bağlantısını kapat.
             _liveStreamCts?.Cancel();
 
             _apiService.Dispose();
             _refreshTimer.Dispose();
-            _authHeartbeatTimer.Dispose();
 
             _terminalWebView?.Dispose();
         };
@@ -201,67 +201,21 @@ public sealed partial class MainForm : Form
             ShowPage("dashboard");
     }
 
-    private async Task CheckAuthenticationAsync()
-    {
-        if (Interlocked.Exchange(ref _authCheckRunning, 1) == 1)
-            return;
-
-        try
-        {
-            string previousRole = _authSession.User.Role;
-            _authSession = await _authClient.ValidateOrRefreshAsync(_authSession);
-            _authSessionStore.Save(_authSession);
-
-            if (!string.Equals(previousRole, _authSession.User.Role, StringComparison.OrdinalIgnoreCase))
-                RefreshRoleBasedUi();
-        }
-        catch (AuthApiException ex) when (ex.IsUnauthorized)
-        {
-            _authSessionStore.Clear();
-            _authHeartbeatTimer.Stop();
-            MessageBox.Show(
-                this,
-                "Hesabın devre dışı bırakılmış veya oturumunun süresi dolmuş. Yeniden giriş yapmalısın.",
-                "Oturum sona erdi",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-            Close();
-        }
-        catch (Exception)
-        {
-            // Geçici ağ kesintisinde kullanıcıyı aniden uygulamadan atma.
-            // Sonraki heartbeat yeniden doğrulamayı dener.
-        }
-        finally
-        {
-            Interlocked.Exchange(ref _authCheckRunning, 0);
-        }
-    }
-
-    private async Task LogoutAsync()
+    private Task LogoutAsync()
     {
         DialogResult answer = MessageBox.Show(
             this,
-            "YTMT-STUDIO oturumunu kapatmak istiyor musun?",
-            "Çıkış Yap",
+            "Discord oturumunu bu bilgisayardan kapatmak istiyor musun?",
+            "Discord'dan Çıkış Yap",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);
 
         if (answer != DialogResult.Yes)
-            return;
+            return Task.CompletedTask;
 
-        try
-        {
-            await _authClient.LogoutAsync(_authSession.RefreshToken);
-        }
-        catch (Exception)
-        {
-            // Yerel DPAPI oturumu yine de kaldırılır. Sunucu oturumu kendi
-            // mutlak son kullanma tarihinde geçersiz olacaktır.
-        }
-
-        _authSessionStore.Clear();
+        _discordOAuth?.ClearSavedSession();
         Close();
+        return Task.CompletedTask;
     }
 
     // ==========================================
