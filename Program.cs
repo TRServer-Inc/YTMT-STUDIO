@@ -1,7 +1,5 @@
 using YTMT_STUDIO.AuthClient.Forms;
-using YTMT_STUDIO.AuthClient.Models;
-using YTMT_STUDIO.AuthClient.Services;
-using AuthenticationClient = YTMT_STUDIO.AuthClient.Services.AuthClient;
+using YTMT_STUDIO.Services;
 
 namespace YTMT_STUDIO;
 
@@ -12,62 +10,47 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        AuthenticationClient authClient;
+        var settingsService = new SettingsService();
+        var settings = settingsService.Load();
+        DiscordOAuthService? oauthService = null;
+        DiscordSession? discordSession = null;
+
         try
         {
-            authClient = new AuthenticationClient();
+            if (ulong.TryParse(settings.DiscordClientId, out _))
+            {
+                oauthService = new DiscordOAuthService(settings.DiscordClientId, settings.BotApiUrl);
+                discordSession = oauthService.LoadSavedSessionAsync().GetAwaiter().GetResult();
+            }
+
+            if (discordSession is null)
+            {
+                oauthService?.Dispose();
+                oauthService = null;
+
+                using var loginForm = new DiscordLoginForm(settingsService, settings);
+                if (loginForm.ShowDialog() != DialogResult.OK ||
+                    loginForm.Session is null ||
+                    loginForm.OAuthService is null)
+                    return;
+
+                discordSession = loginForm.Session;
+                oauthService = loginForm.OAuthService;
+            }
+
+            using (oauthService)
+            {
+                Application.Run(new MainForm(discordSession, oauthService));
+            }
         }
         catch (Exception ex)
         {
+            oauthService?.Dispose();
             MessageBox.Show(
                 ex.Message,
-                "YTMT-STUDIO yapılandırması",
+                "YTMT-STUDIO | Discord giriş hatası",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
-            return;
-        }
-
-        using (authClient)
-        {
-            var sessionStore = new AuthSessionStore();
-            AuthSession? session = null;
-            string? initialMessage = null;
-
-            AuthSession? savedSession = sessionStore.Load();
-            if (savedSession is not null)
-            {
-                try
-                {
-                    // Başlangıçta refresh token doğrulanır. Sunucu sabit 30 günlük
-                    // son kullanma tarihini değiştirmez.
-                    AuthSession refreshedSession = authClient.RefreshAsync(savedSession.RefreshToken)
-                        .GetAwaiter().GetResult();
-                    sessionStore.Save(refreshedSession);
-                    session = refreshedSession;
-                }
-                catch (AuthApiException ex) when (ex.IsUnauthorized)
-                {
-                    sessionStore.Clear();
-                    initialMessage = "Kaydedilmiş oturum artık geçerli değil. Yeniden giriş yap.";
-                }
-                catch (Exception)
-                {
-                    // Ağ kesintisinde saklanan oturum silinmez. Kullanıcı login
-                    // ekranından sunucu erişimini kontrol edip tekrar deneyebilir.
-                    initialMessage = "Kayıtlı oturum doğrulanamadı. Sunucu bağlantısını kontrol et ve giriş yap.";
-                }
-            }
-
-            if (session is null)
-            {
-                using var loginForm = new LoginForm(authClient, sessionStore, initialMessage);
-                if (loginForm.ShowDialog() != DialogResult.OK || loginForm.Session is null)
-                    return;
-
-                session = loginForm.Session;
-            }
-
-            Application.Run(new MainForm(session, authClient, sessionStore));
         }
     }
 }
