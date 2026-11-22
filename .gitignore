@@ -1,0 +1,15 @@
+# Visual Studio / .NET build outputs
+.vs/
+bin/
+obj/
+*.user
+*.suo
+*.cache
+
+# Local application data and logs
+*.log
+
+# Render Authentication API local secrets and dependencies
+AuthService/.env
+AuthService/node_modules/
+AuthService/npm-debug.log*
