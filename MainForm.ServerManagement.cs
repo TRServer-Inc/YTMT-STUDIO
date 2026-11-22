@@ -16,6 +16,7 @@ public sealed partial class MainForm
     private DiscordGuildResources _guildResources = new();
     private GuildWorkspace? _activeGuildWorkspace;
     private List<DiscordGuildInfo> _manageableGuilds = [];
+    private int _guildSelectionVersion;
 
     private Panel? _serverManagementPage;
     private DataGridView? _serverGuildGrid;
@@ -513,6 +514,7 @@ public sealed partial class MainForm
         DiscordGuildInfo? guild = _manageableGuilds.FirstOrDefault(g => g.Id == row.Id);
         if (guild is null) return;
 
+        int selectionVersion = ++_guildSelectionVersion;
         _selectedDiscordGuild = guild;
         _activeGuildWorkspace = _guildWorkspaceStore.Load(guild.Id, guild.Name);
         _selectedGuildCaption!.Text = $"{guild.Name}  ·  {guild.MemberCount?.ToString("N0") ?? "üye sayısı yok"} üye";
@@ -526,11 +528,13 @@ public sealed partial class MainForm
             _selectedBotCaption!.Text = "YTMT BOT durumu kontrol ediliyor...";
             _selectedBotCaption.ForeColor = Palette.Yellow;
             _selectedBotStatus = await _discordOAuth!.GetBotStatusAsync(guild.Id);
+            if (selectionVersion != _guildSelectionVersion) return;
             if (_selectedBotStatus.Installed)
             {
                 _selectedBotCaption.Text = $"YTMT BOT bağlı · {_selectedBotStatus.Guild?.Name}";
                 _selectedBotCaption.ForeColor = Palette.Green;
                 _guildResources = await _discordOAuth.GetGuildResourcesAsync(guild.Id, _discordSession!.AccessToken);
+                if (selectionVersion != _guildSelectionVersion) return;
                 LoadGuildResourcesIntoControls();
             }
             else if (!_selectedBotStatus.ServiceAvailable)
