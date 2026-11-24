@@ -17,6 +17,7 @@ public sealed partial class MainForm
     private GuildWorkspace? _activeGuildWorkspace;
     private List<DiscordGuildInfo> _manageableGuilds = [];
     private int _guildSelectionVersion;
+    private readonly HashSet<string> _guildSelectionInFlight = new(StringComparer.Ordinal);
 
     private Panel? _serverManagementPage;
     private DataGridView? _serverGuildGrid;
@@ -536,6 +537,10 @@ public sealed partial class MainForm
         DiscordGuildInfo? guild = _manageableGuilds.FirstOrDefault(g => g.Id == row.Id);
         if (guild is null) return;
 
+        // DataGridView can raise SelectionChanged more than once for the same row.
+        // Do not launch duplicate status/resources requests for the same guild.
+        if (!_guildSelectionInFlight.Add(guild.Id)) return;
+
         int selectionVersion = ++_guildSelectionVersion;
         _selectedDiscordGuild = guild;
         _activeGuildWorkspace = _guildWorkspaceStore.Load(guild.Id, guild.Name);
@@ -576,11 +581,16 @@ public sealed partial class MainForm
         }
         catch (Exception ex)
         {
+            if (selectionVersion != _guildSelectionVersion) return;
             _selectedBotStatus = null;
             _selectedBotCaption!.Text = "Bot kontrolü başarısız: " + ex.Message;
             _selectedBotCaption.ForeColor = Palette.Red;
             _guildResources = new DiscordGuildResources();
             LoadGuildResourcesIntoControls();
+        }
+        finally
+        {
+            _guildSelectionInFlight.Remove(guild.Id);
         }
     }
 
